@@ -40,7 +40,8 @@
 #############################################################################
 
 from qtpropertybrowser import QtAbstractPropertyBrowser, QtBrowserItem
-from PyQt5.QtCore import Qt, QRect, QSize, QEvent, QCoreApplication, pyqtSignal, pyqtProperty
+from qtvariantproperty import QtVariantEditorFactory, QtVariantPropertyManager
+from PyQt5.QtCore import Qt, QRect, QSize, QEvent, QCoreApplication, pyqtSignal, pyqtProperty, QObject, QMimeData, QUrl
 from PyQt5.QtWidgets import (
     QHBoxLayout, QItemDelegate,
     QHeaderView, QApplication, QStyle,
@@ -100,6 +101,8 @@ class QtTreePropertyBrowserPrivate():
         self.m_markPropertiesWithoutValue = False
         self.m_browserChangedBlocked = False
         self.m_expandIcon = QIcon()
+        self.m_variantPropertyManager = None
+        self.m_variantEditorFactory = None
 
     def init(self, parent):
         layout = QHBoxLayout(parent)
@@ -128,6 +131,10 @@ class QtTreePropertyBrowserPrivate():
         self.m_treeWidget.collapsed.connect(self.slotCollapsed)
         self.m_treeWidget.expanded.connect(self.slotExpanded)
         self.m_treeWidget.currentItemChanged.connect(self.slotCurrentTreeItemChanged)
+
+        self.m_variantPropertyManager = QtVariantPropertyManager()
+        self.m_variantEditorFactory = QtVariantEditorFactory()
+        parent.setFactoryForManager(self.m_variantPropertyManager, self.m_variantEditorFactory)
 
     def createEditor(self, property, parent):
         return self.q_ptr.createEditor(property, parent)
@@ -331,7 +338,9 @@ class QtPropertyEditorView(QTreeWidget):
         super(QtPropertyEditorView, self).__init__(parent)
 
         self.m_editorPrivate = None
+        self.setMouseTracking(True)
         self.header().sectionDoubleClicked.connect(self.resizeColumnToContents)
+        self.setAcceptDrops(True)
 
     def setEditorPrivate(self, editorPrivate):
         self.m_editorPrivate = editorPrivate
@@ -356,12 +365,19 @@ class QtPropertyEditorView(QTreeWidget):
             if (c.isValid()):
                 painter.fillRect(option.rect, c)
                 opt.palette.setColor(QPalette.AlternateBase, c.lighter(112))
+        
+        # set disable text to blue
+        opt.palette.setColor(QPalette.Disabled, QPalette.Text, QColor(Qt.GlobalColor.blue))
 
         super(QtPropertyEditorView, self).drawRow(painter, opt, index)
         color = QApplication.style().styleHint(QStyle.SH_Table_GridLineColor, opt)
         painter.save()
+        color = Qt.GlobalColor.lightGray
         painter.setPen(QPen(QColor(color)))
+        #painter.setPen(QPen(color))
         painter.drawLine(opt.rect.x(), opt.rect.bottom(), opt.rect.right(), opt.rect.bottom())
+        x_2 = opt.rect.x() + opt.rect.width() / 2 - 1
+        painter.drawLine(x_2, opt.rect.top(), x_2, opt.rect.bottom())
         painter.restore()
 
     def keyPressEvent(self, event):
@@ -393,6 +409,34 @@ class QtPropertyEditorView(QTreeWidget):
             elif (not self.m_editorPrivate.hasValue(item) and self.m_editorPrivate.markPropertiesWithoutValue() and not self.rootIsDecorated()):
                 if (event.pos().x() + self.header().offset() < 20):
                     item.setExpanded(not item.isExpanded())
+
+    def mouseMoveEvent(self, event):
+        super(QtPropertyEditorView, self).mouseMoveEvent(event)
+        treeView = self.parent()
+        if treeView:
+            treeView.updateAllObject()
+
+    def enableDragDrop(self, event):
+        mimeData = event.mimeData()
+        if mimeData.hasUrls():
+            event.accept()
+
+    def dragEnterEvent(self, event):
+        self.enableDragDrop(event)
+
+    def dragMoveEvent(self, event):
+        self.enableDragDrop(event)
+
+    def dragLeaveEvent(self, event):
+        event.accept()
+
+    def dropEvent(self, event):
+        mimeData = event.mimeData()
+        if mimeData.hasUrls():
+            urlList = mimeData.urls()
+            treeView = self.parent()
+            for url in urlList:
+                treeView.dropFile(url.toLocalFile())
 
 ## ------------ QtPropertyEditorDelegate
 class QtPropertyEditorDelegate(QItemDelegate):
@@ -614,6 +658,8 @@ class QtTreePropertyBrowser(QtAbstractPropertyBrowser):
 
         self.d_ptr.init(self)
         self.currentItemChangedSignal.connect(self.d_ptr.slotCurrentBrowserItemChanged)
+        self.setPropertiesWithoutValueMarked(True)
+        self.setRootIsDecorated(False)
 
     def editedItem(self):
         return self.d_ptr.m_delegate.editedItem()
@@ -884,6 +930,34 @@ class QtTreePropertyBrowser(QtAbstractPropertyBrowser):
         self.d_ptr.propertyChanged(item)
 
     ###
+    # recursive update
+    ###
+    def recursiveUpdateItem(self, property_):
+        #property_.update()
+        for subProperty in property_.subProperties():
+            subProperty.update()
+            self.recursiveUpdateItem(subProperty)
+            
+    ###
+    # update all object    
+    ###
+    def updateAllObject(self):
+        for topItem in self.topLevelItems():
+            topProperty = topItem.property()
+            self.recursiveUpdateItem(topProperty)
+    ###
+
+    ###
+    # drop file
+    ###
+    def dropFile(self, fileName: str):
+        self.fileDropped.emit(fileName)
+    ###
+    # add object
+    ##
+    def addObject(self, obj: QObject):
+        self.d_ptr.m_variantPropertyManager.addObject(obj, self, None)
+
     #   Sets the current item to \a item and opens the relevant editor for it.
     ###
     indentation = pyqtProperty(int, indentation, setIndentation)
@@ -893,3 +967,4 @@ class QtTreePropertyBrowser(QtAbstractPropertyBrowser):
     resizeMode = pyqtProperty(int, resizeMode, setResizeMode)
     splitterPosition = pyqtProperty(int, splitterPosition, setSplitterPosition)
     propertiesWithoutValueMarked = pyqtProperty(bool, propertiesWithoutValueMarked, setPropertiesWithoutValueMarked)
+    fileDropped = pyqtSignal(str)

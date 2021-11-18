@@ -195,7 +195,7 @@ class QtSpinBoxFactoryPrivate(EditorFactoryPrivate):
                 manager = self.q_ptr.propertyManager(property)
                 if (not manager):
                     return
-                manager.setValue(property, value)
+                manager.setValue(property, value, True)
                 return
 
 registerEditorFactory(QtSpinBoxFactoryPrivate, QSpinBox)
@@ -311,7 +311,7 @@ class QtSliderFactoryPrivate(EditorFactoryPrivate):
                 manager = self.q_ptr.propertyManager(property)
                 if (not manager):
                     return
-                manager.setValue(property, value)
+                manager.setValue(property, value, True)
                 return
 
 registerEditorFactory(QtSliderFactoryPrivate, QSlider)
@@ -424,7 +424,7 @@ class QtScrollBarFactoryPrivate(EditorFactoryPrivate):
                 manager = self.q_ptr.propertyManager(property)
                 if (not manager):
                     return
-                manager.setValue(property, value)
+                manager.setValue(property, value, True)
                 return
 
 registerEditorFactory(QtScrollBarFactoryPrivate, QScrollBar)
@@ -522,7 +522,7 @@ class QtCheckBoxFactoryPrivate(EditorFactoryPrivate):
             manager = self.q_ptr.propertyManager(property)
             if (not manager):
                 return
-            manager.setValue(property, value)
+            manager.setValue(property, value, True)
             return
 
 registerEditorFactory(QtCheckBoxFactoryPrivate, QtBoolEdit)
@@ -669,10 +669,20 @@ class QtDoubleSpinBoxFactoryPrivate(EditorFactoryPrivate):
                 manager = self.q_ptr.propertyManager(property)
                 if (not manager):
                     return
-                manager.setValue(property, value)
+                manager.setValue(property, value, True)
                 return
 
 registerEditorFactory(QtDoubleSpinBoxFactoryPrivate, QDoubleSpinBox)
+
+### \class QLineEditEx
+class QLineEditEx(QLineEdit):
+    def __init__(self, parent:QWidget = None):
+        super(QLineEditEx, self).__init__(parent)
+        self.editingFinished.connect(self.handleEditingFinished)
+    def handleEditingFinished(self):
+        self.editingFinishedEx.emit(self.text())
+
+    editingFinishedEx = pyqtSignal(str)
 
 ### \class QtDoubleSpinBoxFactory
 
@@ -812,10 +822,10 @@ class QtLineEditFactoryPrivate(EditorFactoryPrivate):
                 manager = self.q_ptr.propertyManager(property)
                 if (not manager):
                     return
-                manager.setValue(property, value)
+                manager.setValue(property, value, True)
                 return
 
-registerEditorFactory(QtLineEditFactoryPrivate, QLineEdit)
+registerEditorFactory(QtLineEditFactoryPrivate, QLineEditEx)
 
 ###
 #    \class QtLineEditFactory
@@ -869,7 +879,8 @@ class QtLineEditFactory(QtAbstractEditorFactory):
 
         editor.setText(manager.value(property))
 
-        editor.textChanged.connect(self.d_ptr.slotSetValue)
+        #editor.textChanged.connect(self.d_ptr.slotSetValue)
+        editor.editingFinishedEx.connect(self.d_ptr.slotSetValue)
         editor.destroyed.connect(self.d_ptr.slotEditorDestroyed)
         return editor
 
@@ -921,7 +932,7 @@ class QtDateEditFactoryPrivate(EditorFactoryPrivate):
                 manager = self.q_ptr.propertyManager(property)
                 if (not manager):
                     return
-                manager.setValue(property, value)
+                manager.setValue(property, value, True)
                 return
 
 registerEditorFactory(QtDateEditFactoryPrivate, QDateEdit)
@@ -1005,7 +1016,7 @@ class QtTimeEditFactoryPrivate(EditorFactoryPrivate):
                 manager = self.q_ptr.propertyManager(property)
                 if (not manager):
                     return
-                manager.setValue(property, value)
+                manager.setValue(property, value, True)
                 return
 
 registerEditorFactory(QtTimeEditFactoryPrivate, QTimeEdit)
@@ -1086,7 +1097,7 @@ class QtDateTimeEditFactoryPrivate(EditorFactoryPrivate):
                 manager = self.q_ptr.propertyManager(property)
                 if (not manager):
                     return
-                manager.setValue(property, value)
+                manager.setValue(property, value, True)
                 return
 
 registerEditorFactory(QtDateTimeEditFactoryPrivate, QDateTimeEdit)
@@ -1166,7 +1177,7 @@ class QtKeySequenceEditorFactoryPrivate(EditorFactoryPrivate):
                 manager = self.q_ptr.propertyManager(property)
                 if (not manager):
                     return
-                manager.setValue(property, value)
+                manager.setValue(property, value, True)
                 return
 
 registerEditorFactory(QtKeySequenceEditorFactoryPrivate, QtKeySequenceEdit)
@@ -1365,7 +1376,7 @@ class QtCharEditorFactoryPrivate(EditorFactoryPrivate):
                 manager = self.q_ptr.propertyManager(property)
                 if (not manager):
                     return
-                manager.setValue(property, value)
+                manager.setValue(property, value, True)
                 return
 
 registerEditorFactory(QtCharEditorFactoryPrivate, QtCharEdit)
@@ -1485,7 +1496,7 @@ class QtEnumEditorFactoryPrivate(EditorFactoryPrivate):
                 manager = self.q_ptr.propertyManager(property)
                 if (not manager):
                     return
-                manager.setValue(property, value)
+                manager.setValue(property, value, True)
                 return
 
 registerEditorFactory(QtEnumEditorFactoryPrivate, QComboBox)
@@ -1756,7 +1767,7 @@ class QtColorEditorFactoryPrivate(EditorFactoryPrivate):
                 manager = self.q_ptr.propertyManager(property)
                 if (not manager):
                     return
-                manager.setValue(property, value)
+                manager.setValue(property, value, True)
                 return
 
 registerEditorFactory(QtColorEditorFactoryPrivate, QtColorEditWidget)
@@ -1906,7 +1917,7 @@ class QtFontEditorFactoryPrivate(EditorFactoryPrivate):
             manager = self.q_ptr.propertyManager(property)
             if (not manager):
                 return
-            manager.setValue(property, value)
+            manager.setValue(property, value, True)
             return
 
 registerEditorFactory(QtFontEditorFactoryPrivate, QtFontEditWidget)

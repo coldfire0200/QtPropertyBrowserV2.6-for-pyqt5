@@ -82,9 +82,20 @@ from qtpropertymanager import (
     QtCursorPropertyManager,
     QtGroupPropertyManager
     )
-from pyqtcore import QMap, QMapMap, qMetaTypeId
-from PyQt5.QtCore import QVariant, pyqtSignal, QUrl
+from qtpropertybrowser import QtAbstractPropertyBrowser
+import re
+from pyqtcore import QMap, QMapMap, qMetaTypeId, QList
+from PyQt5.QtCore import QVariant, pyqtSignal, QUrl, QObject, QMetaObject, QMetaProperty, QMetaEnum
 from PyQt5.QtGui import QIcon, QKeySequence
+from collections import deque
+from operator import itemgetter
+
+class QtPropertyPair():
+    def __init__(self, metaObj: QMetaObject, property: QMetaProperty):
+        self.metaObject = metaObj
+        self.property = property
+    def __eq__(self, other):
+        return self.property.name() == other.property.name()
 
 class QtEnumPropertyType():
     def __init__(self):
@@ -253,6 +264,31 @@ class QtVariantProperty(QtProperty):
     ###
     def setAttribute(self, attribute, value):
         self.d_ptr.manager.setAttribute(self, attribute, value)
+
+    ###
+    #
+    #
+    # setAttributes
+    #
+    #
+    ###
+    def setAttributes(self, type: int, attrs: str):
+        attrList = attrs.split(';')
+        for attr in attrList:
+            m = re.findall(r'\s*(\w+)\s*=\s*([\w\.\-]+)', attr)
+            if len(m) == 0: 
+                continue
+            key = m[0][0]
+            val = m[0][1]
+            if not len(key) or not len(val):
+                continue
+            if key in ('singleStep', 'minimum', 'maximum'):
+                if type == QVariant.Int:    
+                    self.setAttribute(key, int(val))
+                elif type == QVariant.Double:
+                    self.setAttribute(key, float(val))
+            elif key == 'decimals':
+                self.setAttribute(key, int(val))
 
 class QtVariantPropertyManagerPrivate():
     def __init__(self):
@@ -945,6 +981,106 @@ class QtVariantPropertyManager(QtAbstractPropertyManager):
             return True
         return False
 
+    def getPropertyMap(self, propertyObject: QObject):
+        classList = deque()
+        propertyMap = []
+        # find all properties
+        metaObject = propertyObject.metaObject()
+        while metaObject:
+            count = metaObject.propertyCount()
+            for i in range(0, count):
+                property_ = metaObject.property(i)
+                if(property_.isUser() and property_.isDesignable()):
+                    propertyPair = QtPropertyPair(metaObject, property_)
+                    #print(f'property found: {property_.name()}')                    
+                    try:
+                        index = propertyMap.index(propertyPair)
+                        propertyMap[index] = propertyPair                        
+                    except ValueError:    
+                        propertyMap.append(propertyPair)
+            classList.appendleft(metaObject)
+            metaObject = metaObject.superClass()
+        # remove empty class from hierarchy list
+
+        finalClassList = []
+        clsName = ''
+        for metaObj in classList:
+            keep = False
+            for pair in propertyMap:
+                if pair.metaObject == metaObj:
+                    keep = True
+                    break
+            if keep:
+                finalClassList.append(metaObj)
+            clsName = metaObj.className()
+            # check if there is a special name for the class
+            index = metaObj.indexOfClassInfo(clsName)
+            if index != -1:
+                clsName = metaObj.classInfo(index).value()
+        return finalClassList, propertyMap, clsName
+
+    def addObject(self, propertyObject: QObject, browser: QtAbstractPropertyBrowser, propParent: QtProperty):
+        # generate metaObject list and property map
+        finalClassList, propertyMap, clsName = self.getPropertyMap(propertyObject)
+        # add property from each metaObject
+        topItem: QtProperty = None
+        objName = propertyObject.objectName()
+        rootName = objName if len(objName) else clsName
+        if not propParent:
+            topItem = self.addProperty(QtVariantPropertyManager.groupTypeId(), rootName, propertyObject)
+            browser.addProperty(topItem)
+        else:
+            topItem = self.addProperty(QVariant.String, rootName)
+            topItem.setPropertyObject(propertyObject)
+            propParent.addSubProperty(topItem)
+        topLevelItem = topItem
+        # add properties 
+        for metaObject in finalClassList:
+            # set default name of the hierarchy property to the class name
+            topItem = topLevelItem
+            for pair in propertyMap:
+                if pair.metaObject != metaObject:
+                    continue
+                property_ = pair.property
+                index = metaObject.indexOfClassInfo(property_.name())
+                # handle classInfo
+                if index != -1:
+                    classInfo = metaObject.classInfo(index).value()
+                    # classInfo
+                    m = re.findall(r'groupType:(\w+)',classInfo)
+                    if len(m) == 1 and len(m[0]):
+                        topItem = self.addProperty(QVariant.String, m[0])
+                        topLevelItem.addSubProperty(topItem)
+                        continue
+                    if len(re.findall(r'groupReset', classInfo)):
+                        topItem = topLevelItem
+                        continue
+                    
+                item: QtVariantProperty = None
+                if property_.isEnumType():
+                    propType = QtVariantPropertyManager.flagTypeId() if property_.isFlagType() else QtVariantPropertyManager.enumTypeId()
+                    attribute = 'flagNames' if property_.isFlagType() else 'enumNames'
+                    item = self.addProperty(propType, property_.name(), propertyObject)
+                    enumerator: QMetaEnum = property_.enumerator()
+                    enumDict: dict = {}
+                    for i in range(enumerator.keyCount()):
+                        enumDict[enumerator.key(i)] = enumerator.value(i)
+                    sortedEnumPairList = sorted(enumDict.items(), key=itemgetter(1))
+                    enumList: list = []
+                    for k in sortedEnumPairList:
+                        enumList.append(k[0])
+                    item.setAttribute(attribute, QList(enumList))
+                    enumIndex = int(propertyObject.property(property_.name()))
+                    item.setValue(enumIndex)
+                    topItem.addSubProperty(item)
+                else:
+                    item = self.addProperty(property_.type(), property_.name(), propertyObject)
+                    item.setValue(property_.read(propertyObject))
+                    topItem.addSubProperty(item)
+                if item != None:
+                    item.setEnabled(property_.isWritable())
+                    if index != -1:
+                        item.setAttributes(property_.type(), classInfo)
     ###
     #   Creates and returns a variant property of the given \a propertyType
     #   with the given \a name.
@@ -959,14 +1095,14 @@ class QtVariantPropertyManager(QtAbstractPropertyManager):
     #
     #    \sa isPropertyTypeSupported()
     ###
-    def addProperty(self, propertyType, name=''):
+    def addProperty(self, propertyType, name='', propertyObject: QObject = None):
         if (not self.isPropertyTypeSupported(propertyType)):
             return 0
 
         wasCreating = self.d_ptr.m_creatingProperty
         self.d_ptr.m_creatingProperty = True
         self.d_ptr.m_propertyType = propertyType
-        property = super(QtVariantPropertyManager, self).addProperty(name)
+        property = super(QtVariantPropertyManager, self).addProperty(name, propertyObject)
         self.d_ptr.m_creatingProperty = wasCreating
         self.d_ptr.m_propertyType = 0
 
@@ -984,6 +1120,7 @@ class QtVariantPropertyManager(QtAbstractPropertyManager):
     #    \sa setValue()
     ###
     def value(self, property):
+        #print('QtVariantPropertyManager::value')
         internProp = propertyToWrappedProperty().get(property, 0)
         if (internProp == 0):
             return None
@@ -1179,7 +1316,7 @@ class QtVariantPropertyManager(QtAbstractPropertyManager):
     #
     #    \sa value(), QtVariantProperty.setValue(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property = True):
         propType = QVariant(val).userType()
         if (not propType):
             return
@@ -1201,7 +1338,7 @@ class QtVariantPropertyManager(QtAbstractPropertyManager):
                 val = val.toString()
             elif tv != str:
                 val = str(val)
-        manager.setValue(internProp, val)
+        manager.setValue(internProp, val, update_property)
 
     ###
     #    Sets the value of the specified \a attribute of the given \a
@@ -1358,6 +1495,7 @@ class QtVariantPropertyManager(QtAbstractPropertyManager):
             if (not self.d_ptr.m_creatingSubProperties):
                 manager = it
                 internProp = manager.addProperty()
+                internProp.assign(property)
                 self.d_ptr.m_internalToProperty[internProp] = varProp
 
             propertyToWrappedProperty()[varProp] = internProp

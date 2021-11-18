@@ -75,7 +75,7 @@ class QtPropertyPrivate():
         self.m_name = ''
         self.m_nameColor = QColor()
         self.m_valueColor = QColor()
-        
+        self.m_object = None
 ###
 #    \class QtProperty
 #
@@ -133,7 +133,7 @@ class QtProperty():
     def __init__(self, manager=None):
         self.d__ptr = QtPropertyPrivate(manager)
         self.d__ptr.q_ptr = self
-        
+
     ###
     #    Destroys this property.
     #
@@ -321,6 +321,61 @@ class QtProperty():
         self.d__ptr.m_name = text
         self.propertyChanged()
 
+    ###
+    #
+    #
+    # get property value from QObject
+    #
+    #
+    ###
+    def getPropertyValue(self):
+        if self.d__ptr.m_object:
+            return self.d__ptr.m_object.property(self.d__ptr.m_name)
+
+    ###
+    #
+    #
+    # QtProperty update
+    #
+    #
+    ###
+    def update(self):
+        self.d__ptr.m_manager.update(self)
+
+    ###
+    #
+    #
+    #   Assign property 
+    #
+    #
+    ###
+    def assign(self, another):
+        self.setPropertyName(another.d__ptr.m_name)
+        self.setPropertyObject(another.d__ptr.m_object)
+
+    ###
+    #
+    #
+    # if object field is valid
+    #
+    #
+    ###
+    def hasObject(self):
+        return self.d__ptr.m_object != None
+
+    ###
+    #
+    #
+    # set value to QObject property
+    #
+    #
+    ###
+    def setPropertyValue(self, value):
+        if self.d__ptr.m_object:
+            self.d__ptr.m_object.setProperty(self.d__ptr.m_name, value)
+
+    def setPropertyObject(self, obj):
+        self.d__ptr.m_object = obj
     ###
     #    \fn void QtProperty::setNameColor(const QColor &color)
     #
@@ -654,6 +709,21 @@ class QtAbstractPropertyManager(QObject):
         return True
 
     ###
+    #
+    #
+    #  update
+    #
+    #
+    ###
+    def update(self, property):
+        if property.hasObject():
+            val = property.getPropertyValue()
+            self.setValue(property, val, False)
+    
+    def setValue(self, property, value, update_property):
+        raise NotImplementedError()
+
+    ###
     #    Returns an icon representing the current state of the given \a
     #    property.
     #
@@ -708,13 +778,13 @@ class QtAbstractPropertyManager(QObject):
     #
     #    \sa initializeProperty(), properties()
     ###
-    def addProperty(self, name=''):
+    def addProperty(self, name='', obj: QObject = None):
         property = self.createProperty()
         if (property):
             property.setPropertyName(name)
+            property.setPropertyObject(obj)
             self.d__ptr.m_properties.add(property)
             self.initializeProperty(property)
-
         return property
 
     ###

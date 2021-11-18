@@ -234,19 +234,21 @@ def getMinimum(propertyMap, property, defaultValue = None):
 def getMaximum(propertyMap, property, defaultValue = None):
     return getData(propertyMap, DATA_MAXVAL, property, defaultValue)
 
-def setSimpleValue(propertyMap, manager,propertyChangedSignal,valueChangedSignal, property, val):
+def setSimpleValue(propertyMap, manager,propertyChangedSignal,valueChangedSignal, property, val, update_property = True):
     if not property in propertyMap.keys():
         return
-
     if (propertyMap[property] == val):
         return
 
     propertyMap[property] = val
 
+    if update_property:
+        property.setPropertyValue(val)
+
     propertyChangedSignal.emit(property)
     valueChangedSignal.emit(property, val)
 
-def setValueInRange(manager, managerPrivate, propertyChangedSignal, valueChangedSignal, property, val, setSubPropertyValue=None):
+def setValueInRange(manager, managerPrivate, propertyChangedSignal, valueChangedSignal, property, val, setSubPropertyValue=None, update_property = True):
     if not property in managerPrivate.m_values.keys():
         return
 
@@ -258,6 +260,9 @@ def setValueInRange(manager, managerPrivate, propertyChangedSignal, valueChanged
     oldVal = data.val
 
     data.val = qBound(data.minVal, val, data.maxVal)
+
+    if update_property:
+        property.setPropertyValue(data.val)
 
     if data.val == oldVal:
         return
@@ -674,10 +679,10 @@ class QtIntPropertyManager(QtAbstractPropertyManager):
     #
     #    \sa value(), setRange(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
         setSubPropertyValue = None
         setValueInRange(self, self.d_ptr, self.propertyChangedSignal,self.valueChangedSignal,
-                    property, val, setSubPropertyValue)
+                    property, val, setSubPropertyValue, update_property)
 
     ###
     #    Sets the minimum value for the given \a property to \a minVal.
@@ -975,13 +980,13 @@ class QtDoublePropertyManager(QtAbstractPropertyManager):
     #
     #    \sa value(), setRange(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
         setSubPropertyValue = 0
         setValueInRange(self,
                     self.d_ptr,
                     self.propertyChangedSignal,
                     self.valueChangedSignal,
-                    property, val, setSubPropertyValue)
+                    property, val, setSubPropertyValue, update_property)
 
     ###
     #    Sets the step value for the given \a property to \a step.
@@ -1271,7 +1276,7 @@ class QtStringPropertyManager(QtAbstractPropertyManager):
     #
     #    \sa value(), setRegExp(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
         if not property in self.d_ptr.m_values.keys():
             return
 
@@ -1284,6 +1289,9 @@ class QtStringPropertyManager(QtAbstractPropertyManager):
             return
 
         data.val = val
+
+        if update_property:
+            property.setPropertyValue(data.val)
 
         self.d_ptr.m_values[property] = data
 
@@ -1501,7 +1509,7 @@ class QtBoolPropertyManager(QtAbstractPropertyManager):
     #
     #    \sa value()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
         if not property in self.d_ptr.m_values.keys():
             return
 
@@ -1510,6 +1518,9 @@ class QtBoolPropertyManager(QtAbstractPropertyManager):
             return
 
         data.val = val
+        if update_property:
+            property.setPropertyValue(data.val)
+
         self.d_ptr.m_values[property] = data
 
         self.propertyChangedSignal.emit(property)
@@ -1674,13 +1685,13 @@ class QtDatePropertyManager(QtAbstractPropertyManager):
     #
     #    \sa value(), setRange(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
         setSubPropertyValue = 0
         setValueInRange(self,
                     self.d_ptr,
                     self.propertyChangedSignal,
                     self.valueChangedSignal,
-                    property, val, setSubPropertyValue)
+                    property, val, setSubPropertyValue, update_property)
 
     ###
     #    Sets the minimum value for the given \a property to \a minVal.
@@ -1924,11 +1935,11 @@ class QtDateTimePropertyManager(QtAbstractPropertyManager):
     #
     #    \sa value(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
         setSimpleValue(self.d_ptr.m_values, self,
                     self.propertyChangedSignal,
                     self.valueChangedSignal,
-                    property, val)
+                    property, val, update_property)
 
     #
     ###
@@ -2016,11 +2027,11 @@ class QtKeySequencePropertyManager(QtAbstractPropertyManager):
     #
     #    \sa value(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
         setSimpleValue(self.d_ptr.m_values, self,
                     self.propertyChangedSignal,
                     self.valueChangedSignal,
-                    property, val)
+                    property, val, update_property)
 
     ###
     #    \reimp
@@ -2112,11 +2123,11 @@ class QtCharPropertyManager(QtAbstractPropertyManager):
     #
     #    \sa value(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
         setSimpleValue(self.d_ptr.m_values, self,
                     self.propertyChangedSignal,
                     self.valueChangedSignal,
-                    property, val)
+                    property, val, update_property)
 
     #
     ###
@@ -2280,7 +2291,7 @@ class QtLocalePropertyManager(QtAbstractPropertyManager):
     #
     #    \sa value(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
         if not property in self.d_ptr.m_values.keys():
             return
 
@@ -2478,7 +2489,7 @@ class QtPointPropertyManager(QtAbstractPropertyManager):
     #
     #    \sa value(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
         if not property in self.d_ptr.m_values.keys():
             return
 
@@ -2488,6 +2499,9 @@ class QtPointPropertyManager(QtAbstractPropertyManager):
         self.d_ptr.m_values[property] = val
         self.d_ptr.m_intPropertyManager.setValue(self.d_ptr.m_propertyToX[property], val.x())
         self.d_ptr.m_intPropertyManager.setValue(self.d_ptr.m_propertyToY[property], val.y())
+        
+        if update_property:
+            property.setPropertyValue(val)
 
         self.propertyChangedSignal.emit(property)
         self.valueChangedSignal.emit(property, val)
@@ -2653,7 +2667,7 @@ class QtPointFPropertyManager(QtAbstractPropertyManager):
 
     #
     ###
-    #    Returns the given \a property's value.
+    #        Returns the given \a property's value.
     #
     #    If the given \a property is not managed by this manager, this:
     #    function returns a point with coordinates (0, 0).
@@ -2693,7 +2707,7 @@ class QtPointFPropertyManager(QtAbstractPropertyManager):
     #
     #    \sa value(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
         if not property in self.d_ptr.m_values.keys():
             return
 
@@ -2703,6 +2717,9 @@ class QtPointFPropertyManager(QtAbstractPropertyManager):
         self.d_ptr.m_values[property].val = val
         self.d_ptr.m_doublePropertyManager.setValue(self.d_ptr.m_propertyToX[property], val.x())
         self.d_ptr.m_doublePropertyManager.setValue(self.d_ptr.m_propertyToY[property], val.y())
+
+        if update_property:
+            property.setPropertyValue(val)
 
         self.propertyChangedSignal.emit(property)
         self.valueChangedSignal.emit(property, val)
@@ -2986,12 +3003,12 @@ class QtSizePropertyManager(QtAbstractPropertyManager):
 
     #    \sa value(), setRange(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
         setValueInRange(self,
                     self.d_ptr,
                     self.propertyChangedSignal,
                     self.valueChangedSignal,
-                    property, val, self.d_ptr.setValue)
+                    property, val, self.d_ptr.setValue, update_property)
 
     #
     ###
@@ -3313,12 +3330,12 @@ class QtSizeFPropertyManager(QtAbstractPropertyManager):
 
     #    \sa value(), setRange(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
         setValueInRange(self,
                     self.d_ptr,
                     self.propertyChangedSignal,
                     self.valueChangedSignal,
-                    property, val, self.d_ptr.setValue)
+                    property, val, self.d_ptr.setValue, update_property)
 
     ###
     #    \fn void QtSizeFPropertyManager.setDecimals(property, prec)
@@ -3681,7 +3698,7 @@ class QtRectPropertyManager(QtAbstractPropertyManager):
 
     #    \sa value(), setConstraint(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
 
         if not property in self.d_ptr.m_values.keys():
             return
@@ -3703,6 +3720,9 @@ class QtRectPropertyManager(QtAbstractPropertyManager):
             return
 
         data.val = newRect
+
+        if update_property:
+            property.setPropertyValue(data.val)
 
         self.d_ptr.m_values[property] = data
         self.d_ptr.m_intPropertyManager.setValue(self.d_ptr.m_propertyToX[property], newRect.x())
@@ -4086,7 +4106,7 @@ class QtRectFPropertyManager(QtAbstractPropertyManager):
 
     #    \sa value(), setConstraint(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
 
         if not property in self.d_ptr.m_values.keys():
             return
@@ -4108,6 +4128,9 @@ class QtRectFPropertyManager(QtAbstractPropertyManager):
             return
 
         data.val = newRect
+
+        if update_property:
+            property.setPropertyValue(data.val)
 
         self.d_ptr.m_values[property] = data
         self.d_ptr.m_doublePropertyManager.setValue(self.d_ptr.m_propertyToX[property], newRect.x())
@@ -4431,7 +4454,7 @@ class QtEnumPropertyManager(QtAbstractPropertyManager):
 
     #    \sa value(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
         if not property in self.d_ptr.m_values.keys():
             return
 
@@ -4450,6 +4473,9 @@ class QtEnumPropertyManager(QtAbstractPropertyManager):
             return
 
         data.val = val
+
+        if update_property:
+            property.setPropertyValue(data.val)
 
         self.d_ptr.m_values[property] = data
 
@@ -4548,7 +4574,7 @@ class QtFlagPropertyManagerPrivate():
                 else:
                     v &= ~(1 << level)
 
-                self.q_ptr.setValue(prop, v)
+                self.q_ptr.setValue(prop, v, True)
                 return
 
             level += 1
@@ -4706,7 +4732,7 @@ class QtFlagPropertyManager(QtAbstractPropertyManager):
 
     #    \sa value(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
 
         if not property in self.d_ptr.m_values.keys():
             return
@@ -4724,11 +4750,14 @@ class QtFlagPropertyManager(QtAbstractPropertyManager):
 
         data.val = val
 
+        if update_property:
+            property.setPropertyValue(data.val)
+
         self.d_ptr.m_values[property] = data
         level = 0
         for prop in self.d_ptr.m_propertyToFlags[property]:
             if (prop):
-                self.d_ptr.m_boolPropertyManager.setValue(prop, val & (1 << level))
+                self.d_ptr.m_boolPropertyManager.setValue(prop, val & (1 << level), update_property)
             level += 1
 
         self.propertyChangedSignal.emit(property)
@@ -4769,7 +4798,7 @@ class QtFlagPropertyManager(QtAbstractPropertyManager):
             self.d_ptr.m_propertyToFlags[property].append(prop)
             self.d_ptr.m_flagToProperty[prop] = property
 
-        self.flagNamesChangedSignal.emit(property, data.flagNames)
+        #self.flagNamesChangedSignal.emit(property, data.flagNames)
 
         self.propertyChangedSignal.emit(property)
         self.valueChangedSignal.emit(property, data.val)
@@ -4990,7 +5019,7 @@ class QtSizePolicyPropertyManager(QtAbstractPropertyManager):
 
     #    \sa value(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
 
         if not property in self.d_ptr.m_values.keys():
             return
@@ -5008,6 +5037,9 @@ class QtSizePolicyPropertyManager(QtAbstractPropertyManager):
                     val.horizontalStretch())
         self.d_ptr.m_intPropertyManager.setValue(self.d_ptr.m_propertyToVStretch[property],
                     val.verticalStretch())
+        
+        if update_property:
+            property.setPropertyValue(val)
 
         self.propertyChangedSignal.emit(property)
         self.valueChangedSignal.emit(property, val)
@@ -5372,7 +5404,7 @@ class QtFontPropertyManager(QtAbstractPropertyManager):
 
     #    \sa value(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
         if not property in self.d_ptr.m_values.keys():
             return
 
@@ -5395,6 +5427,9 @@ class QtFontPropertyManager(QtAbstractPropertyManager):
         self.d_ptr.m_boolPropertyManager.setValue(self.d_ptr.m_propertyToStrikeOut[property], val.strikeOut())
         self.d_ptr.m_boolPropertyManager.setValue(self.d_ptr.m_propertyToKerning[property], val.kerning())
         self.d_ptr.m_settingValue = settingValue
+
+        if update_property:
+            property.setPropertyValue(val)
 
         self.propertyChangedSignal.emit(property)
         self.valueChangedSignal.emit(property, val)
@@ -5683,7 +5718,7 @@ class QtColorPropertyManager(QtAbstractPropertyManager):
 
     #    \sa value(), valueChanged()
     ###
-    def setValue(self, property, val):
+    def setValue(self, property, val, update_property):
         if not property in self.d_ptr.m_values.keys():
             return
 
@@ -5696,6 +5731,9 @@ class QtColorPropertyManager(QtAbstractPropertyManager):
         self.d_ptr.m_intPropertyManager.setValue(self.d_ptr.m_propertyToG[property], val.green())
         self.d_ptr.m_intPropertyManager.setValue(self.d_ptr.m_propertyToB[property], val.blue())
         self.d_ptr.m_intPropertyManager.setValue(self.d_ptr.m_propertyToA[property], val.alpha())
+
+        if update_property:
+            property.setPropertyValue(val)
 
         self.propertyChangedSignal.emit(property)
         self.valueChangedSignal.emit(property, val)
@@ -5876,7 +5914,7 @@ class QtCursorPropertyManager(QtAbstractPropertyManager):
 
     #    \sa value(), valueChanged()
     ###
-    def setValue(self, property, value):
+    def setValue(self, property, value, update_property):
         if not property in self.d_ptr.m_values.keys():
             return
 
@@ -5884,6 +5922,9 @@ class QtCursorPropertyManager(QtAbstractPropertyManager):
             return
 
         self.d_ptr.m_values[property] = value
+
+        if update_property:
+            property.setPropertyValue(value)
 
         self.propertyChangedSignal.emit(property)
         self.valueChangedSignal.emit(property, value)

@@ -1,3 +1,5 @@
+This fork add native QObject-derived class property support
+
 Qt Solutions Component: Property Browser
 
 A property browser framework enabling the user to edit a set of
@@ -18,6 +20,7 @@ QtTreePropertyBrowser, QtButtonPropertyBrowser and
 QtGroupBoxPropertyBrowser.
 
 Version history:
+
 
 2.1: - QtTreePropertyBrowser - tooltip of property applied to
      first column, while second column shows the value text of property
